@@ -33,9 +33,9 @@ live = f"""<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Prezbo Model</title>
+<title>NFL Rushing Model</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2064%2064%27%3E%3Crect%20width%3D%2764%27%20height%3D%2764%27%20rx%3D%2714%27%20fill%3D%27%23111B1F%27%2F%3E%3Cg%20transform%3D%27rotate%28-30%2032%2032%29%27%3E%3Cpath%20d%3D%27M5%2032Q32%207%2059%2032Q32%2057%205%2032Z%27%20fill%3D%27%239A5324%27%20stroke%3D%27%2361300F%27%20stroke-width%3D%271.6%27%2F%3E%3Cpath%20d%3D%27M21%2032h22%27%20fill%3D%27none%27%20stroke%3D%27%23F6F1E8%27%20stroke-width%3D%273.2%27%20stroke-linecap%3D%27round%27%2F%3E%3Cg%20stroke%3D%27%23F6F1E8%27%20stroke-width%3D%273%27%20stroke-linecap%3D%27round%27%3E%3Cpath%20d%3D%27M26%2027v10%27%2F%3E%3Cpath%20d%3D%27M32%2026.2v11.6%27%2F%3E%3Cpath%20d%3D%27M38%2027v10%27%2F%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E">
-<meta name="description" content="Prezbo Model — NFL rushing offense vs rushing defense, live from FTN data.">
+<meta name="description" content="NFL Rushing Model — NFL rushing offense vs rushing defense, live from FTN data.">
 {fontlink}
 <style>:root{{color-scheme:light dark}}img{{max-width:100%}}[hidden]{{display:none!important}}</style>
 {styles}
