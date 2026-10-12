@@ -393,6 +393,9 @@ for (const side of ["offense","defense"]) {
   }
 }
 
+// FTN publishes adjusted contact splits (aYBCO/aYACO) for offenses only; the
+// defense table carries the unadjusted YBCO/YACO, so label them as what they are.
+const sideLabel = (label, side) => side === "defense" ? label.replace(/^a(Y[BA]CO)$/, "$1") : label;
 const fmt = (v,dp)=> v==null ? "—" : v.toLocaleString(undefined,{minimumFractionDigits:dp,maximumFractionDigits:dp});
 const ord = n => n + (["th","st","nd","rd"][(n%100-n%10!=10)*(n%10<4)*n%10] || "th");
 // 1-5 neon green, 6-10 green, 11-15 light green, 16-25 light red, 26-32 red
@@ -406,8 +409,8 @@ const DEFS = {
   yds_gm:["Rush Yards per Game","Rushing yards divided by games played."],
   att_gm:["Attempts per Game","How many times a team runs it per game."],
   ypc:["Yards per Carry","Average yards gained on a run."],
-  aybco:["Yards Before Contact","Average yards gained before anyone touches the runner. Mostly the offensive line."],
-  ayaco:["Yards After Contact","Average yards gained after the first defender arrives. Mostly the running back."],
+  aybco:["Yards Before Contact","Average yards gained before anyone touches the runner. Mostly the offensive line. Offenses show FTN's adjusted figure (aYBCO); for defenses FTN only publishes the unadjusted one (YBCO)."],
+  ayaco:["Yards After Contact","Average yards gained after the first defender arrives. Mostly the running back. Offenses show FTN's adjusted figure (aYACO); for defenses FTN only publishes the unadjusted one (YACO)."],
   exp_pct:["Explosive Run Rate","How often a run goes for 10+ yards."],
   succ_pct:["Success Rate","How often a run gains enough for the down and distance."],
   stf_pct:["Stuffed Run Rate","How often a run is stopped at or behind the line. Low is good for an offense, high for a defense."],
@@ -451,7 +454,7 @@ function tickerPanels(side, best) {
         <b style="color:${nameOn(COLORS[o.t], fill)}">${META[o.t].name}</b>
         <span class="v">${o.v.toFixed(st.dp)} <i>#${rank}</i></span></span>`;
     }).join("");
-    return `<div class="tickpanel"><span class="tickstat">${st.label}</span>
+    return `<div class="tickpanel"><span class="tickstat">${sideLabel(st.label, side)}</span>
       <div class="vport"><div class="vtrack">${items}</div></div></div>`;
   }).join("");
 }
@@ -606,7 +609,7 @@ function wireTips(){
 function block(team, side, label) {
   const row = DATA[team][side];
   const head = `<tr><th class="side">${label}</th>` +
-    COLS.map(c=>`<th data-def="${c.k}" tabindex="0">${c.label}</th>`).join("") + "</tr>";
+    COLS.map(c=>`<th data-def="${c.k}" tabindex="0">${sideLabel(c.label, side)}</th>`).join("") + "</tr>";
   const vals = `<tr class="vals ${side==="offense"?"off":"def"}">
       <td class="side"><span><img src="${LOGOS[team]}" alt="">${abbr(team)}</span></td>` +
     COLS.map(c=>`<td><span>${fmt(row[c.k], c.dp)}</span></td>`).join("") + "</tr>";
@@ -733,7 +736,7 @@ function renderRankings() {
     RANK_COLS.map(c=>{
       const on = c.k===rkKey;
       const sort = on ? ` aria-sort="${desc?"descending":"ascending"}"` : "";
-      return `<th tabindex="0" data-k="${c.k}" data-def="${c.k}"${sort}>${c.label}<span class="ar">${on?(desc?"▼":"▲"):""}</span></th>`;
+      return `<th tabindex="0" data-k="${c.k}" data-def="${c.k}"${sort}>${sideLabel(c.label, rkSide)}<span class="ar">${on?(desc?"▼":"▲"):""}</span></th>`;
     }).join("");
 
   document.getElementById("rankbody").innerHTML = rows.map((t,i)=>{
@@ -748,7 +751,7 @@ function renderRankings() {
   }).join("");
 
   document.getElementById("sorthint").textContent =
-    `sorted by ${col.label} · ${rkBest ? "best first" : "worst first"}`;
+    `sorted by ${sideLabel(col.label, rkSide)} · ${rkBest ? "best first" : "worst first"}`;
 }
 
 function bindRankings() {
