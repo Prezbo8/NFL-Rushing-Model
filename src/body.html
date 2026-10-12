@@ -229,22 +229,33 @@ const GRADE_WEIGHTS = [
   {k:"exp_pct",  w:3,  offHigh:true,  defHigh:false},
 ];
 
-// Opponent adjustment. Only DVOA accounts for schedule on its own, so the other
-// six inputs are corrected here: subtract how far a team's opponents sit from
+// Opponent adjustment. Only DVOA accounts for schedule on its own (FTN adjusts
+// it), so it is skipped and the other eight inputs are corrected here: subtract how far a team's opponents sit from
 // league average on the mirror stat. Gaining 5.25 against defenses that allow
 // 5.0 is not the same as gaining 5.25 against defenses that allow 3.8.
 //
 // A team's own games are inside its opponents' averages, which damps the
 // correction, so the pass is iterated three times -- each round the opponent
 // baselines are rebuilt from adjusted values rather than raw ones.
-function adjustForSchedule() {
+// Opponents a team has faced, in week order, cut to the games FTN's season
+// stats actually include. nflverse posts a week's games the night they end;
+// FTN catches up a day or two later, and in that gap an untrimmed list would
+// correct four games of stats against five opponents.
+function playedFoes() {
   const foes = {};
-  for (const g of GAMES) (foes[g.team] ??= []).push(g.opponent);
+  for (const g of [...GAMES].sort((a,b)=>a.week-b.week)) (foes[g.team] ??= []).push(g.opponent);
+  for (const t of Object.keys(foes)) foes[t] = foes[t].slice(0, DATA[t]?.offense?.games ?? 0);
+  return foes;
+}
+
+function adjustForSchedule() {
+  const foes = playedFoes();
   const enough = TEAMS.filter(t => (foes[t] || []).length);
   const out = {offense:{}, defense:{}};
   if (!enough.length) return null;                      // no game logs: fall back to raw
 
   for (const {k} of GRADE_WEIGHTS) {
+    if (k === "dvoa") continue;                         // already opponent-adjusted
     const raw = {offense:{}, defense:{}};
     for (const side of ["offense","defense"])
       for (const t of TEAMS) raw[side][t] = DATA[t][side][k];
@@ -288,7 +299,8 @@ function computeGrades() {
         for (const t of TEAMS) {
           const v = val(t);
           if (v == null) continue;
-          pct[g.k][t] = vals.length > 1 ? vals.indexOf(v)/(vals.length-1)*100 : 50;
+          // tied teams share the midpoint of the places they occupy
+          pct[g.k][t] = vals.length > 1 ? (vals.indexOf(v)+vals.lastIndexOf(v))/2/(vals.length-1)*100 : 50;
         }
       }
       for (const t of TEAMS) {
@@ -310,8 +322,7 @@ computeGrades();
 // raw defensive grade of the defenses it played. Shown for context -- the
 // adjusted grade already accounts for it, this makes it legible.
 (function computeSOS(){
-  const foes = {};
-  for (const g of GAMES) (foes[g.team] ??= []).push(g.opponent);
+  const foes = playedFoes();
   for (const t of TEAMS) {
     const played = foes[t] || [];
     for (const [side, foeSide] of [["offense","defense"],["defense","offense"]]) {
@@ -375,7 +386,9 @@ for (const side of ["offense","defense"]) {
     const high = side==="offense" ? c.offHigh : c.defHigh;
     vals.sort((p,q)=> high ? q.v-p.v : p.v-q.v);
     const m = {};
-    vals.forEach((o,i)=>{ m[o.t] = {rank:i+1, pct: vals.length>1 ? (vals.length-1-i)/(vals.length-1)*100 : 50}; });
+    // tied values share the better rank, matching rankOf() on the rankings tab
+    vals.forEach((o,i)=>{ const r = vals.findIndex(x=>x.v===o.v);
+      m[o.t] = {rank:r+1, pct: vals.length>1 ? (vals.length-1-r)/(vals.length-1)*100 : 50}; });
     RANK[side][c.k] = m;
   }
 }
@@ -866,7 +879,7 @@ function wirePicker(slot){
   })();
   document.getElementById("nfllogo").src = NFL_LOGO;
 
-  // Snapshot freshness. The scraper runs Sun/Tue/Wed, so anything older than
+  // Snapshot freshness. The scraper runs Tue/Wed/Sat, so anything older than
   // about four days means a run failed and the numbers on screen are stale.
   (function freshness(){
     const on = DATA[TEAMS[0]].offense.scraped_on;

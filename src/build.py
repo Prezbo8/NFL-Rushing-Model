@@ -25,7 +25,7 @@ live_script = script.replace(
   'const NAMES = Object.fromEntries(Object.entries(DATA).map(([k,v])=>[k, META[k].city+" "+META[k].name]));'
 ).replace('DATA[t].name.toLowerCase()','META[t].name.toLowerCase()')
 
-COLS = ("team,side,games,attempts,rushing_yards,ypc,rushing_tds,first_downs,long_run,dvoa,succ_pct,"
+COLS = ("season,team,side,games,attempts,rushing_yards,ypc,rushing_tds,first_downs,long_run,dvoa,succ_pct,"
         "epa_att,aybco,ayaco,stf_pct,exp_pct,crt_pct,aryoe,ply_gm,rush_pct,yd_ply,pt_gm,drv_gm,sec_ply,scraped_on,scraped_at")
 
 live = f"""<!doctype html>
@@ -58,11 +58,19 @@ const META={json.dumps(meta,separators=(',',':'))};
 const SUPABASE_URL="https://mfliuasrygxkembqmrkr.supabase.co";
 const SUPABASE_ANON="{anon}";   // anon key: read-only, enforced by row-level security
 
+// Supabase caps a response at 1000 rows, so page through until a short page.
+// The RB game logs pass that around week 8 and would otherwise be cut silently.
 async function sb(path){{
-  const r=await fetch(`${{SUPABASE_URL}}/rest/v1/${{path}}`,
-    {{headers:{{apikey:SUPABASE_ANON,Authorization:"Bearer "+SUPABASE_ANON}}}});
-  if(!r.ok) throw new Error("Supabase returned "+r.status+" for "+path.split("?")[0]);
-  return r.json();
+  const out=[], page=1000;
+  for(let from=0;;from+=page){{
+    const r=await fetch(`${{SUPABASE_URL}}/rest/v1/${{path}}`,
+      {{headers:{{apikey:SUPABASE_ANON,Authorization:"Bearer "+SUPABASE_ANON,
+                 "Range-Unit":"items",Range:`${{from}}-${{from+page-1}}`}}}});
+    if(r.status===416) return out;                // asked past the last row
+    if(!r.ok) throw new Error("Supabase returned "+r.status+" for "+path.split("?")[0]);
+    const rows=await r.json(); out.push(...rows);
+    if(rows.length<page) return out;
+  }}
 }}
 
 async function loadData(){{
@@ -79,26 +87,27 @@ async function loadData(){{
 }}
 
 (async function boot(){{
-  let DATA, GAMES=[], RBS=[], INJ=null;
+  let DATA, SEASON, GAMES=[], RBS=[], INJ=null;
   try{{
     DATA=await loadData();
+    SEASON=Object.values(DATA)[0].offense.season;
     // game logs are a nice-to-have: a failure here must not blank the page
     try{{
       [GAMES,RBS]=await Promise.all([
-        sb("nfl_game_logs?select=week,team,opponent,carries,rush_yards,rush_tds,ypc,points_for,points_against&order=week.desc"),
-        sb("nfl_rb_game_logs?select=week,team,opponent,player,position,carries,rush_yards,rush_tds")]);
+        sb(`nfl_game_logs?select=week,team,opponent,carries,rush_yards,rush_tds,ypc,points_for,points_against&season=eq.${{SEASON}}&order=week.desc`),
+        sb(`nfl_rb_game_logs?select=week,team,opponent,player,position,carries,rush_yards,rush_tds&season=eq.${{SEASON}}&order=week.desc,team,player`)]);
     }}catch(e){{ console.warn("game logs unavailable:",e.message); }}
     // injuries: latest snapshot only. A failure leaves INJ null and the injury
     // grade blank rather than quietly equal to the adjusted grade.
     try{{
-      const inj=await sb("nfl_injury_impact?select=scraped_on,team,unit,player,position,status,share&order=scraped_on.desc&limit=500");
+      const inj=await sb(`nfl_injury_impact?select=scraped_on,team,unit,player,position,status,share&season=eq.${{SEASON}}&order=scraped_on.desc&limit=500`);
       INJ=inj.filter(r=>r.scraped_on===inj[0]?.scraped_on);
     }}catch(e){{ console.warn("injuries unavailable:",e.message); }}
   }}
   catch(err){{
     document.getElementById("boot").innerHTML =
       `<b>Couldn't load the data.</b><span>${{err.message}}</span><br>`+
-      `<code>The scraper runs Sun, Tue and Wed. If this persists, check the Actions tab.</code>`;
+      `<code>The scraper runs Tue, Wed and Sat. If this persists, check the Actions tab.</code>`;
     return;
   }}
   document.getElementById("boot").hidden=true;
