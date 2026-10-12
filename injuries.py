@@ -6,7 +6,7 @@ toward league average by the total missing:
 
   defense  share of the team's run stuffs + run disruptions   (FTN Stats iQ)
   OL       share of the team's offensive-line snaps           (nflverse snaps)
-  RB       share of the team's carries                        (nflverse weekly)
+  RB       share of the team's running-back carries           (nflverse weekly)
 
 Shares are season-to-date, so a player who has already missed games carries a
 smaller share: the team stats partly reflect his absence already.
@@ -94,11 +94,12 @@ def ol_shares(season):
 
 
 def rb_shares(players):
-    """(team, name key) -> share of the team's carries, from nfl_game_logs rows."""
+    """(team, name key) -> share of the team's RB carries, from nfl_game_logs rows.
+    QB and receiver runs are left out: the model is about running backs only."""
     car, tot = defaultdict(int), defaultdict(int)
     for p in players:
-        tot[p["team"]] += p["carries"]
         if p["position"] in RB_POS:
+            tot[p["team"]] += p["carries"]
             car[(p["team"], key(p["player"]))] += p["carries"]
     return {k: v / tot[k[0]] for k, v in car.items() if tot[k[0]]}
 

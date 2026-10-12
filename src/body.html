@@ -328,7 +328,7 @@ computeGrades();
 // so a missing player never raises a grade, and there is no jump at 50.
 // Defense: the missing players' share of the team's run stuffs + disruptions.
 // Offense: 60% line (share of OL snaps, a starter ~20%) and 40% backfield
-// (share of carries). The 60/40 split is a judgment call, not fitted --
+// (share of running-back carries). The 60/40 split is a judgment call, not fitted --
 // back-test it once injury snapshots have accumulated.
 const OFF_SPLIT = {ol:0.6, rb:0.4};
 (function computeInjury(){
@@ -401,7 +401,7 @@ const DEFS = {
   sos:["Strength of Schedule","The average raw grade of the opponents faced, on the side that was tested — for an offense, the defenses it has played. Higher means a harder slate. It is already inside the adjusted grade; this column just makes it visible."],
   grade_raw:["Raw Grade","The same 0-100 score, but off the raw stats with no correction for who the team played. Useful next to the adjusted grade: a big gap means the schedule has been doing a lot of the work."],
   grade:["Adjusted Grade","A 0-100 score from DVOA 25, success rate 17, EPA per attempt 13, yards before contact 13, yards per carry 10, stuff rate 9, yards per game 6, yards after contact 4 and explosive rate 3. Each input is adjusted for the defenses or offenses that team actually faced, so an easy schedule does not inflate it. The stats in the table itself are raw."],
-  grade_inj:["Injury Grade","The adjusted grade lowered by how much of the unit is Out, Doubtful or on a reserve list right now: the missing share times the distance from league average (50). An above-average unit is pulled toward 50, a below-average one toward 0, so injuries never raise a grade. Defense: the missing players' share of the team's run stuffs and disruptions. Offense: 60% offensive line (share of line snaps) and 40% backfield (share of carries). Questionable players are not counted. A player who has already missed games carries a smaller share, because the team stats already reflect his absence. Blank if the injury data did not load."],
+  grade_inj:["Injury Grade","The adjusted grade lowered by how much of the unit is Out, Doubtful or on a reserve list right now: the missing share times the distance from league average (50). An above-average unit is pulled toward 50, a below-average one toward 0, so injuries never raise a grade. Defense: the missing players' share of the team's run stuffs and disruptions. Offense: 60% offensive line (share of line snaps) and 40% backfield (share of running-back carries). Questionable players are not counted. A player who has already missed games carries a smaller share, because the team stats already reflect his absence. Blank if the injury data did not load."],
   dvoa:["Rushing DVOA","Efficiency versus league average, adjusted for who they played."],
   epa_att:["EPA per Attempt","Points added per carry, counting the situation it happened in."],
   ply_gm:["Plays per Game","Total offensive plays per game, run and pass."],
@@ -601,7 +601,7 @@ function block(team, side, label) {
 }
 
 // Who is missing from each unit in the matchup, biggest share first.
-const UNIT_OF = {defense:"of run stops", ol:"of line snaps", rb:"of carries"};
+const UNIT_OF = {defense:"of run stops", ol:"of line snaps", rb:"of RB carries"};
 function injNote(team, side) {
   const who = `<b style="color:${tc(team)}">${abbr(team)}</b> ${side==="offense"?"run offense":"run defense"}`;
   if (!INJ) return `<p class="injnote">${who}: injury data unavailable.</p>`;
