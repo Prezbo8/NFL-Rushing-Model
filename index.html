@@ -229,6 +229,8 @@ tr.vals td:not(.side) span{color:var(--ink)}
 tr.vals.off td.side span{color:var(--tOff)}
 tr.vals.def td.side span{color:var(--tDef)}
 .blocknote{font-size:12px;color:var(--faint);padding:11px 8px 0;font-style:italic;max-width:64ch}
+.injnote{font-size:13px;color:var(--muted);padding:9px 8px 0;line-height:1.5}
+.injnote b{font-family:"Archivo",system-ui,sans-serif}
   border:1px solid var(--line);color:var(--muted)}
 </style>
 <style>
@@ -983,7 +985,7 @@ async function loadData(){
 }
 
 (async function boot(){
-  let DATA, GAMES=[], RBS=[];
+  let DATA, GAMES=[], RBS=[], INJ=null;
   try{
     DATA=await loadData();
     // game logs are a nice-to-have: a failure here must not blank the page
@@ -992,6 +994,12 @@ async function loadData(){
         sb("nfl_game_logs?select=week,team,opponent,carries,rush_yards,rush_tds,ypc,points_for,points_against&order=week.desc"),
         sb("nfl_rb_game_logs?select=week,team,opponent,player,position,carries,rush_yards,rush_tds")]);
     }catch(e){ console.warn("game logs unavailable:",e.message); }
+    // injuries: latest snapshot only. A failure leaves INJ null and the injury
+    // grade blank rather than quietly equal to the adjusted grade.
+    try{
+      const inj=await sb("nfl_injury_impact?select=scraped_on,team,unit,player,position,status,share&order=scraped_on.desc&limit=500");
+      INJ=inj.filter(r=>r.scraped_on===inj[0]?.scraped_on);
+    }catch(e){ console.warn("injuries unavailable:",e.message); }
   }
   catch(err){
     document.getElementById("boot").innerHTML =
@@ -1243,9 +1251,33 @@ computeGrades();
   }
 })();
 
+// Injury grade: the adjusted grade lowered by the share of the unit that is
+// Out, Doubtful or on a reserve list right now, times its distance from league
+// average (50). Above 50 that pulls it toward 50; below 50 it pushes toward 0,
+// so a missing player never raises a grade, and there is no jump at 50.
+// Defense: the missing players' share of the team's run stuffs + disruptions.
+// Offense: 60% line (share of OL snaps, a starter ~20%) and 40% backfield
+// (share of carries). The 60/40 split is a judgment call, not fitted --
+// back-test it once injury snapshots have accumulated.
+const OFF_SPLIT = {ol:0.6, rb:0.4};
+(function computeInjury(){
+  for (const t of TEAMS) {
+    const hurt = (INJ || []).filter(r=>r.team===t).sort((a,b)=>b.share-a.share);
+    const sum = u => hurt.filter(r=>r.unit===u).reduce((a,r)=>a+Number(r.share),0);
+    const miss = {defense: Math.min(1, sum("defense")),
+                  offense: Math.min(1, OFF_SPLIT.ol*sum("ol") + OFF_SPLIT.rb*sum("rb"))};
+    for (const side of ["offense","defense"]) {
+      const g = DATA[t][side].grade;
+      DATA[t][side].grade_inj = INJ && g != null ? Math.max(0, Math.round(g - miss[side]*Math.abs(g-50))) : null;
+      DATA[t][side].missing = hurt.filter(r=> (r.unit==="defense") === (side==="defense"));
+    }
+  }
+})();
+
 const COLS = [
   {k:"grade_raw",     label:"Raw<br>Grade",     dp:0, offHigh:true,  defHigh:true},
   {k:"grade",         label:"Adj<br>Grade",     dp:0, offHigh:true,  defHigh:true},
+  {k:"grade_inj",     label:"Inj<br>Grade",     dp:0, offHigh:true,  defHigh:true},
   {k:"rushing_tds",   label:"SZN<br>TD",        dp:0, offHigh:true,  defHigh:false},
   {k:"yds_gm",        label:"Yds<br>/Gm",       dp:1, offHigh:true,  defHigh:false},
   {k:"att_gm",        label:"Att<br>/Gm",       dp:1, offHigh:true,  defHigh:false},
@@ -1298,6 +1330,7 @@ const DEFS = {
   sos:["Strength of Schedule","The average raw grade of the opponents faced, on the side that was tested — for an offense, the defenses it has played. Higher means a harder slate. It is already inside the adjusted grade; this column just makes it visible."],
   grade_raw:["Raw Grade","The same 0-100 score, but off the raw stats with no correction for who the team played. Useful next to the adjusted grade: a big gap means the schedule has been doing a lot of the work."],
   grade:["Adjusted Grade","A 0-100 score from DVOA 25, success rate 17, EPA per attempt 13, yards before contact 13, yards per carry 10, stuff rate 9, yards per game 6, yards after contact 4 and explosive rate 3. Each input is adjusted for the defenses or offenses that team actually faced, so an easy schedule does not inflate it. The stats in the table itself are raw."],
+  grade_inj:["Injury Grade","The adjusted grade lowered by how much of the unit is Out, Doubtful or on a reserve list right now: the missing share times the distance from league average (50). An above-average unit is pulled toward 50, a below-average one toward 0, so injuries never raise a grade. Defense: the missing players' share of the team's run stuffs and disruptions. Offense: 60% offensive line (share of line snaps) and 40% backfield (share of carries). Questionable players are not counted. A player who has already missed games carries a smaller share, because the team stats already reflect his absence. Blank if the injury data did not load."],
   dvoa:["Rushing DVOA","Efficiency versus league average, adjusted for who they played."],
   epa_att:["EPA per Attempt","Points added per carry, counting the situation it happened in."],
   ply_gm:["Plays per Game","Total offensive plays per game, run and pass."],
@@ -1496,6 +1529,17 @@ function block(team, side, label) {
   return head + vals + rks;
 }
 
+// Who is missing from each unit in the matchup, biggest share first.
+const UNIT_OF = {defense:"of run stops", ol:"of line snaps", rb:"of carries"};
+function injNote(team, side) {
+  const who = `<b style="color:${tc(team)}">${abbr(team)}</b> ${side==="offense"?"run offense":"run defense"}`;
+  if (!INJ) return `<p class="injnote">${who}: injury data unavailable.</p>`;
+  const list = DATA[team][side].missing.filter(r=>r.share>=0.01);
+  if (!list.length) return `<p class="injnote">${who}: no contributors Out or Doubtful.</p>`;
+  return `<p class="injnote">${who} missing: ` + list.map(r=>
+    `${r.player} (${r.position}, ${r.status}) ${Math.round(r.share*100)}% ${UNIT_OF[r.unit]}`).join(" · ") + "</p>";
+}
+
 function panel(offT, defT) {
   let core = 0, n = 0;
   for (const k of ["dvoa","succ_pct","epa_att"]) {
@@ -1521,6 +1565,7 @@ function panel(offT, defT) {
       <div class="panelfoot">
         <img class="ghost" src="${LOGOS[defT]}" alt="" aria-hidden="true">
       </div>
+      ${injNote(offT,"offense")}${injNote(defT,"defense")}
       <p class="blocknote">Yards before contact and success rate both higher is what marks a run game
         that actually works — the rest is texture.</p>
       <div class="logs" id="logs"></div>
@@ -1551,6 +1596,7 @@ const RANK_COLS = [
   {k:"games",    label:"GP",      dp:0, neutral:true},
   {k:"grade_raw",label:"Raw",     dp:0, offHigh:true,  defHigh:true},
   {k:"grade",    label:"Adj",     dp:0, offHigh:true,  defHigh:true},
+  {k:"grade_inj",label:"Inj",     dp:0, offHigh:true,  defHigh:true},
   {k:"dvoa",     label:"DVOA",    dp:1, offHigh:true,  defHigh:false},
   {k:"succ_pct", label:"SUCC%",   dp:1, offHigh:true,  defHigh:false},
   {k:"epa_att",  label:"EPA/ATT", dp:3, offHigh:true,  defHigh:false},

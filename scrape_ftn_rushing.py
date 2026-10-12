@@ -15,6 +15,7 @@ from zoneinfo import ZoneInfo
 import requests
 
 import ftn_tables
+import injuries
 import nfl_game_logs
 
 API = "https://6u5we6fbxi.execute-api.us-east-1.amazonaws.com/Statshub/statshub"
@@ -190,6 +191,10 @@ def main():
     push(url, key, players, "nfl_rb_game_logs", "season,week,team,player")
     weeks = sorted({g["week"] for g in games})
     print(f"wrote {len(games)} team-games and {len(players)} player-games, weeks {weeks[0]}-{weeks[-1]}")
+
+    hurt = injuries.build(SEASON, scraped, players)
+    push(url, key, hurt, "nfl_injury_impact", "season,scraped_on,team,unit,player")
+    print(f"wrote {len(hurt)} injured players to nfl_injury_impact")
 
 
 if __name__ == "__main__":

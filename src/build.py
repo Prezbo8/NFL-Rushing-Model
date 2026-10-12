@@ -79,7 +79,7 @@ async function loadData(){{
 }}
 
 (async function boot(){{
-  let DATA, GAMES=[], RBS=[];
+  let DATA, GAMES=[], RBS=[], INJ=null;
   try{{
     DATA=await loadData();
     // game logs are a nice-to-have: a failure here must not blank the page
@@ -88,6 +88,12 @@ async function loadData(){{
         sb("nfl_game_logs?select=week,team,opponent,carries,rush_yards,rush_tds,ypc,points_for,points_against&order=week.desc"),
         sb("nfl_rb_game_logs?select=week,team,opponent,player,position,carries,rush_yards,rush_tds")]);
     }}catch(e){{ console.warn("game logs unavailable:",e.message); }}
+    // injuries: latest snapshot only. A failure leaves INJ null and the injury
+    // grade blank rather than quietly equal to the adjusted grade.
+    try{{
+      const inj=await sb("nfl_injury_impact?select=scraped_on,team,unit,player,position,status,share&order=scraped_on.desc&limit=500");
+      INJ=inj.filter(r=>r.scraped_on===inj[0]?.scraped_on);
+    }}catch(e){{ console.warn("injuries unavailable:",e.message); }}
   }}
   catch(err){{
     document.getElementById("boot").innerHTML =
