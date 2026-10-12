@@ -1475,15 +1475,21 @@ function gameLog(team, allowed) {
 function renderLogs(offT, defT) {
   const box = document.getElementById("logs");
   if (!box) return;
+  // the searched team's own rank, on the same raw-grade basis as the opponent
+  // badges below it, so a team reads the same wherever it appears
+  const own = (t, side, tag) => {
+    const r = RANK[side].grade_raw?.[t]?.rank;
+    return r ? `<span class="rrk">#${r} ${tag}</span>` : "";
+  };
   box.innerHTML = `
     <div class="logbox">
       <div class="loghead"><img src="${LOGOS[offT]}" alt="">
-        <span style="color:${tc(offT)}">${NAMES[offT]}</span><s>&mdash; Offense</s></div>
+        <span style="color:${tc(offT)}">${NAMES[offT]}</span><s>&mdash; Offense</s>${own(offT,"offense","Rush O")}</div>
       ${gameLog(offT, false)}
     </div>
     <div class="logbox">
       <div class="loghead"><img src="${LOGOS[defT]}" alt="">
-        <span style="color:${tc(defT)}">${NAMES[defT]}</span><s>&mdash; Defense</s></div>
+        <span style="color:${tc(defT)}">${NAMES[defT]}</span><s>&mdash; Defense</s>${own(defT,"defense","Rush D")}</div>
       ${gameLog(defT, true)}
     </div>`;
 }
